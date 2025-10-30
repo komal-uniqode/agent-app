@@ -17,10 +17,10 @@ from livekit.agents import (
 )
 from livekit.plugins import noise_cancellation, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
-from business_config import get_business_info_text
 
 # Add parent directory to path to import business_config
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from business_config import get_business_info_text
 
 logger = logging.getLogger("agent")
 

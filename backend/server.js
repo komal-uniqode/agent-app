@@ -1,6 +1,12 @@
 // server.js
 import express from 'express';
+import cors from 'cors';
 import { AccessToken } from 'livekit-server-sdk';
+import dotenv from 'dotenv';
+import databaseService from './services/databaseService.js';
+
+// Load environment variables
+dotenv.config();
 
 const createToken = async () => {
   // If this room doesn't exist, it'll be automatically created when the first
@@ -10,7 +16,14 @@ const createToken = async () => {
   // It's available as LocalParticipant.identity with livekit-client SDK
   const participantName = 'quickstart-username';
 
-  const at = new AccessToken("APIovoH9gWaMwiE", "uP3yDQ8qaTZmFQKvocieZdwofjf3ubQUoyCXxHf2Gx9C", {
+  const apiKey = process.env.LIVEKIT_API_KEY;
+  const apiSecret = process.env.LIVEKIT_API_SECRET;
+
+  if (!apiKey || !apiSecret) {
+    throw new Error('LIVEKIT_API_KEY and LIVEKIT_API_SECRET must be set in environment variables');
+  }
+
+  const at = new AccessToken(apiKey, apiSecret, {
     identity: participantName,
     // Token to expire after 10 minutes
     ttl: '10m',
@@ -23,10 +36,66 @@ const createToken = async () => {
 const app = express();
 const port = 4200;
 
+// CORS configuration
+app.use(cors({
+  origin: [
+    'http://localhost:3000',  // Next.js dev server
+    'http://localhost:3001',  // Alternative port
+    'http://127.0.0.1:3000',  // Alternative localhost
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}));
+
+// Middleware
+app.use(express.json());
+
+// Existing LiveKit token endpoint
 app.get('/getToken', async (req, res) => {
-  res.send(await createToken());
+  
+  try {
+    const token = await createToken();
+    res.json({
+      token: token,
+      roomName: 'quickstart-room',
+      participantName: 'quickstart-username',
+      expiresIn: 600 // 10 minutes in seconds
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate token' });
+  }
+});
+
+// Health check endpoint
+app.get('/health', async (req, res) => {
+  try {
+    // Test MongoDB connection
+    await databaseService.testConnection();
+    res.json({ 
+      status: 'OK', 
+      message: 'Server is running',
+      mongodb: 'Connected'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'ERROR', 
+      message: 'Server is running but MongoDB connection failed',
+      error: error.message 
+    });
+  }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
 });
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
+  // Test MongoDB connection on startup
+  databaseService.testConnection()
+    .then(() => console.log('✅ MongoDB connection successful'))
+    .catch((error) => console.error('❌ MongoDB connection failed:', error.message));
 });

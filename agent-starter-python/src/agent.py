@@ -1,4 +1,6 @@
 import logging
+import sys
+import os
 
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -15,20 +17,38 @@ from livekit.agents import (
 )
 from livekit.plugins import noise_cancellation, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
+from business_config import get_business_info_text
+
+# Add parent directory to path to import business_config
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
 
-class Assistant(Agent):
+class CustomerSupportAgent(Agent):
     def __init__(self) -> None:
-        super().__init__(
-            instructions="""You are a helpful voice AI assistant. The user is interacting with you via voice, even if you perceive the conversation as text.
-            You eagerly assist users with their questions by providing information from your extensive knowledge.
-            Your responses are concise, to the point, and without any complex formatting or punctuation including emojis, asterisks, or other symbols.
-            You are curious, friendly, and have a sense of humor.""",
-        )
+        # Get business information from configuration
+        business_info = get_business_info_text()
+        
+        instructions = f"""You are a professional customer support executive for our company. You are speaking with customers via voice, so keep your responses conversational and natural.
+
+IMPORTANT: You can ONLY answer questions based on the specific business information provided below. If a customer asks about something not covered in this information, politely say "I'm sorry, but I don't have that information available at the moment. Let me connect you with a human representative who can better assist you."
+
+{business_info}
+
+COMMUNICATION STYLE:
+- Be professional, friendly, and helpful
+- Keep responses concise and clear
+- Use a warm, welcoming tone
+- Ask clarifying questions when needed
+- If you don't know something, admit it and offer to connect them with a human representative
+- Always end conversations by asking if there's anything else you can help with
+
+Remember: Only provide information that's explicitly mentioned above. For anything else, politely redirect to human support."""
+
+        super().__init__(instructions=instructions)
 
     # To add tools, use the @function_tool decorator.
     # Here's an example that adds a simple weather tool.
@@ -116,7 +136,7 @@ async def entrypoint(ctx: JobContext):
 
     # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=Assistant(),
+        agent=CustomerSupportAgent(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             # For telephony applications, use `BVCTelephony` for best results

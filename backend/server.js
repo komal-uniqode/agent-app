@@ -108,6 +108,16 @@ app.post('/api/escalation-requests', async (req, res) => {
       customer_name.trim(),
       date_of_visit.trim()
     );
+    
+    // Log service request creation
+    console.log('📋 SERVICE REQUEST CREATED:');
+    console.log(`   ID: ${result.data.id}`);
+    console.log(`   Customer: ${result.data.customer_name}`);
+    console.log(`   Date of Visit: ${result.data.date_of_visit}`);
+    console.log(`   Question: ${result.data.question}`);
+    console.log(`   Status: ${result.data.status}`);
+    console.log(`   Created At: ${result.data.created_at}`);
+    
     res.status(201).json(result);
   } catch (error) {
     res.status(500).json({ error: error.message || 'Failed to create escalation request' });

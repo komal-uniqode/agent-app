@@ -239,6 +239,12 @@ class DatabaseService {
       // If status is being set to 'resolved' and resolved_at is null, set it
       if (isBeingResolved && !updates.resolved_at) {
         updateData.resolved_at = new Date().toISOString();
+        // Log when request is marked as resolved
+        console.log('✅ REQUEST MARKED AS RESOLVED:');
+        console.log(`   Request ID: ${requestId}`);
+        console.log(`   Question: ${existing.question}`);
+        console.log(`   Customer: ${existing.customer_name}`);
+        console.log(`   Resolved At: ${updateData.resolved_at}`);
       }
 
       // If status is being changed from 'resolved' to something else, clear resolved_at
@@ -281,7 +287,10 @@ class DatabaseService {
 
           if (!existingKBItem) {
             await this.createKnowledgeBaseItem(requestId, updated.question, updated.response);
-            console.log(`✅ Added resolved request ${requestId} to knowledge base`);
+            console.log('📚 ADDED TO KNOWLEDGE BASE:');
+            console.log(`   Request ID: ${requestId}`);
+            console.log(`   Question: ${updated.question}`);
+            console.log(`   Answer: ${updated.response}`);
           } else {
             console.log(`ℹ️  Knowledge base item with ID "${requestId}" already exists, skipping`);
           }

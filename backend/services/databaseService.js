@@ -137,6 +137,48 @@ class DatabaseService {
     }
   }
 
+  // Create knowledge base item
+  async createKnowledgeBaseItem(id, question, answer) {
+    try {
+      if (!this.isConnected) {
+        await this.initialize();
+      }
+
+      if (!this.collections || !this.collections.knowledge_base) {
+        throw new Error('Database collections not properly initialized');
+      }
+
+      // Validate required fields
+      if (!id || id.trim() === '') {
+        throw new Error('ID is required');
+      }
+      if (!question || question.trim() === '') {
+        throw new Error('Question is required');
+      }
+      if (!answer || answer.trim() === '') {
+        throw new Error('Answer is required');
+      }
+
+      const knowledgeItem = {
+        id: id.trim(),
+        question: question.trim(),
+        answer: answer.trim(),
+        created_at: new Date().toISOString(),
+      };
+
+      const result = await this.collections.knowledge_base.insertOne(knowledgeItem);
+
+      return {
+        success: true,
+        data: knowledgeItem,
+        insertedId: result.insertedId,
+      };
+    } catch (error) {
+      console.error('Error creating knowledge base item:', error);
+      throw new Error(`Failed to create knowledge base item: ${error.message}`);
+    }
+  }
+
   // Update escalation request
   async updateEscalationRequest(requestId, updates) {
     try {
@@ -164,8 +206,11 @@ class DatabaseService {
         updated_at: new Date().toISOString(),
       };
 
+      // Check if status is being changed to 'resolved' (not already resolved)
+      const isBeingResolved = updates.status === 'resolved' && existing.status !== 'resolved';
+
       // If status is being set to 'resolved' and resolved_at is null, set it
-      if (updates.status === 'resolved' && !updates.resolved_at) {
+      if (isBeingResolved && !updates.resolved_at) {
         updateData.resolved_at = new Date().toISOString();
       }
 
@@ -190,6 +235,34 @@ class DatabaseService {
 
       // Fetch the updated document
       const updated = await this.collections.escalation_requests.findOne({ id: requestId });
+
+      // Check if we should add to knowledge base:
+      // 1. Status was just changed to 'resolved' AND response exists
+      // 2. OR response was just added AND status is already 'resolved'
+      const responseJustAdded = updates.response && !existing.response && existing.status === 'resolved';
+      const shouldAddToKB = (isBeingResolved || responseJustAdded) && 
+                           updated.response && 
+                           updated.response.trim() !== '' &&
+                           updated.status === 'resolved';
+
+      if (shouldAddToKB) {
+        try {
+          // Check if knowledge base item with this escalation request ID already exists
+          const existingKBItem = await this.collections.knowledge_base.findOne({ 
+            id: requestId 
+          });
+
+          if (!existingKBItem) {
+            await this.createKnowledgeBaseItem(requestId, updated.question, updated.response);
+            console.log(`✅ Added resolved request ${requestId} to knowledge base`);
+          } else {
+            console.log(`ℹ️  Knowledge base item with ID "${requestId}" already exists, skipping`);
+          }
+        } catch (kbError) {
+          // Log error but don't fail the update
+          console.error(`Failed to add to knowledge base: ${kbError.message}`);
+        }
+      }
 
       return {
         success: true,

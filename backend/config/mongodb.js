@@ -67,6 +67,32 @@ const ESCALATION_REQUESTS_SCHEMA = {
   }
 };
 
+// Schema validation for knowledge_base collection
+const KNOWLEDGE_BASE_SCHEMA = {
+  $jsonSchema: {
+    bsonType: 'object',
+    required: ['id', 'question', 'answer', 'created_at'],
+    properties: {
+      id: {
+        bsonType: 'string',
+        description: 'Unique knowledge base item ID - required'
+      },
+      question: {
+        bsonType: 'string',
+        description: 'Question or topic - required'
+      },
+      answer: {
+        bsonType: 'string',
+        description: 'Answer or information content - required'
+      },
+      created_at: {
+        bsonType: 'string',
+        description: 'Timestamp when knowledge base item was created - required'
+      }
+    }
+  }
+};
+
 // Set up collection with schema validation
 async function setupCollectionWithValidation(collectionName, schema, existingCollection) {
   try {
@@ -121,11 +147,15 @@ export async function connectToMongoDB() {
       escalation_requests: db.collection(COLLECTIONS.ESCALATION_REQUESTS),
     };
     
-    // Set up schema validation for escalation_requests
+    // Set up schema validation for collections
     collections = {
       users: basicCollections.users,
       conversations: basicCollections.conversations,
-      knowledge_base: basicCollections.knowledge_base,
+      knowledge_base: await setupCollectionWithValidation(
+        COLLECTIONS.KNOWLEDGE_BASE,
+        KNOWLEDGE_BASE_SCHEMA,
+        basicCollections.knowledge_base
+      ),
       escalation_requests: await setupCollectionWithValidation(
         COLLECTIONS.ESCALATION_REQUESTS,
         ESCALATION_REQUESTS_SCHEMA,

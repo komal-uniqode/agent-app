@@ -47,6 +47,55 @@ class DatabaseService {
     }
     return this.collections;
   }
+
+  // Valid status values
+  static VALID_STATUSES = ['pending', 'resolved', 'timeout'];
+
+  // Validate status value
+  static validateStatus(status) {
+    if (!DatabaseService.VALID_STATUSES.includes(status)) {
+      throw new Error(`Invalid status: ${status}. Must be one of: ${DatabaseService.VALID_STATUSES.join(', ')}`);
+    }
+    return true;
+  }
+
+  // Create escalation request
+  async createEscalationRequest(question, status = 'pending') {
+    try {
+      // Validate status
+      DatabaseService.validateStatus(status);
+      
+      if (!this.isConnected) {
+        await this.initialize();
+      }
+
+      const escalationRequest = {
+        id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        question: question,
+        status: status,
+        resolved_at: null,
+        response: null,
+        created_at: new Date().toISOString(),
+      };
+
+      if (!this.collections || !this.collections.escalation_requests) {
+        throw new Error('Database collections not properly initialized');
+      }
+
+      const result = await this.collections.escalation_requests.insertOne(escalationRequest);
+      
+      // Verify the insert by querying the database
+      const verifyDoc = await this.collections.escalation_requests.findOne({ _id: result.insertedId });
+      
+      return {
+        success: true,
+        data: escalationRequest,
+        insertedId: result.insertedId,
+      };
+    } catch (error) {
+      throw new Error(`Failed to create escalation request: ${error.message}`);
+    }
+  }
 }
 
 export default new DatabaseService();

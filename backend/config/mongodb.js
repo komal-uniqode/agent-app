@@ -25,6 +25,76 @@ export const COLLECTIONS = {
   ESCALATION_REQUESTS: 'escalation_requests',
 };
 
+// Schema validation for escalation_requests collection
+const ESCALATION_REQUESTS_SCHEMA = {
+  $jsonSchema: {
+    bsonType: 'object',
+    required: ['id', 'question', 'status', 'resolved_at', 'response', 'created_at'],
+    properties: {
+      id: {
+        bsonType: 'string',
+        description: 'Unique request ID - required'
+      },
+      question: {
+        bsonType: 'string',
+        description: 'Customer question or issue summary - required'
+      },
+      status: {
+        enum: ['pending', 'resolved', 'timeout'],
+        description: 'Request status - must be one of: pending, resolved, timeout'
+      },
+      resolved_at: {
+        bsonType: ['string', 'null'],
+        description: 'Timestamp when request was resolved - can be null'
+      },
+      response: {
+        bsonType: ['string', 'null'],
+        description: 'Response to the request - can be null'
+      },
+      created_at: {
+        bsonType: 'string',
+        description: 'Timestamp when request was created - required'
+      }
+    }
+  }
+};
+
+// Set up collection with schema validation
+async function setupCollectionWithValidation(collectionName, schema, existingCollection) {
+  try {
+    const collections = await db.listCollections({ name: collectionName }).toArray();
+    
+    if (collections.length === 0) {
+      // Collection doesn't exist, create it with validation
+      console.log(`📋 Creating collection ${collectionName} with schema validation...`);
+      await db.createCollection(collectionName, {
+        validator: schema
+      });
+      console.log(`✅ Collection ${collectionName} created with schema validation`);
+    } else {
+      // Collection exists, update validation if needed
+      try {
+        await db.command({
+          collMod: collectionName,
+          validator: schema,
+          validationLevel: 'strict',
+          validationAction: 'error'
+        });
+        console.log(`✅ Collection ${collectionName} validation schema updated`);
+      } catch (error) {
+        // If update fails (might already have validation), just log it
+        console.log(`ℹ️  Collection ${collectionName} validation check: ${error.message}`);
+      }
+    }
+    
+    return db.collection(collectionName);
+  } catch (error) {
+    console.error(`Error setting up collection ${collectionName}:`, error);
+    // Return existing collection even if validation setup fails
+    return existingCollection || db.collection(collectionName);
+  }
+}
+
 // Connect to MongoDB
 export async function connectToMongoDB() {
   try {
@@ -35,12 +105,24 @@ export async function connectToMongoDB() {
     
     db = client.db(DATABASE_NAME);
     
-    // Initialize collections
-    collections = {
+    // Initialize collections (create basic references first)
+    const basicCollections = {
       users: db.collection(COLLECTIONS.USERS),
       conversations: db.collection(COLLECTIONS.CONVERSATIONS),
       knowledge_base: db.collection(COLLECTIONS.KNOWLEDGE_BASE),
       escalation_requests: db.collection(COLLECTIONS.ESCALATION_REQUESTS),
+    };
+    
+    // Set up schema validation for escalation_requests
+    collections = {
+      users: basicCollections.users,
+      conversations: basicCollections.conversations,
+      knowledge_base: basicCollections.knowledge_base,
+      escalation_requests: await setupCollectionWithValidation(
+        COLLECTIONS.ESCALATION_REQUESTS,
+        ESCALATION_REQUESTS_SCHEMA,
+        basicCollections.escalation_requests
+      ),
     };
     
     return { client, db, collections };

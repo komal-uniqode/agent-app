@@ -86,6 +86,21 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// Create escalation request endpoint
+app.post('/api/escalation-requests', async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question || question.trim() === '') {
+      return res.status(400).json({ error: 'Question is required' });
+    }
+
+    const result = await databaseService.createEscalationRequest(question.trim());
+    res.status(201).json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Failed to create escalation request' });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

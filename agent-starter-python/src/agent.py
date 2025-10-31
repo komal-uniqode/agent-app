@@ -1,6 +1,7 @@
 import logging
 import sys
 import os
+import httpx
 
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -14,6 +15,8 @@ from livekit.agents import (
     cli,
     inference,
     metrics,
+    function_tool,
+    RunContext,
 )
 from livekit.plugins import noise_cancellation, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
@@ -34,7 +37,14 @@ class CustomerSupportAgent(Agent):
         
         instructions = f"""You are a professional customer support executive for our company. You are speaking with customers via voice, so keep your responses conversational and natural.
 
-IMPORTANT: You can ONLY answer questions based on the specific business information provided below. If a customer asks about something not covered in this information, politely say "I'm sorry, but I don't have that information available at the moment. Let me connect you with a human representative who can better assist you."
+IMPORTANT: You can ONLY answer questions based on the specific business information provided below. 
+
+ESCALATION POLICY:
+When you cannot answer a customer's question because it's not covered in the business information:
+1. Acknowledge that you don't have that information available
+2. Ask the customer: "Would you like me to raise a complaint or service request for this issue? Our team will review it and get back to you."
+3. If the customer agrees (says yes, sure, ok, please do, etc.), you MUST use the create_service_request tool to create a brief summary of the issue
+4. After creating the request, confirm with the customer: "I've successfully created a service request for your issue. Our team will review it and respond to you shortly. Is there anything else I can help you with?"
 
 {business_info}
 
@@ -43,29 +53,55 @@ COMMUNICATION STYLE:
 - Keep responses concise and clear
 - Use a warm, welcoming tone
 - Ask clarifying questions when needed
-- If you don't know something, admit it and offer to connect them with a human representative
+- If you don't know something, admit it and offer to create a service request
 - Always end conversations by asking if there's anything else you can help with
 
-Remember: Only provide information that's explicitly mentioned above. For anything else, politely redirect to human support."""
+Remember: Only provide information that's explicitly mentioned above. For anything else, offer to create a service request."""
 
         super().__init__(instructions=instructions)
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
+    @function_tool
+    async def create_service_request(self, context: RunContext, question_summary: str):
+        """Create a service request or complaint for an issue that cannot be resolved by the agent.
+        
+        Use this tool when a customer asks about something not covered in the business information
+        and they have agreed to raise a complaint or service request. Create a brief, clear summary
+        of the customer's issue or question.
+        
+        Args:
+            question_summary: A brief summary of the customer's question or issue that needs human intervention
+        """
+        backend_url = os.getenv("BACKEND_URL", "http://localhost:4200")
+        
+        try:
+            logger.info(f"Creating service request for: {question_summary}")
+            logger.info(f"Calling backend at: {backend_url}/api/escalation-requests")
+            
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    f"{backend_url}/api/escalation-requests",
+                    json={"question": question_summary},
+                    headers={"Content-Type": "application/json"},
+                )
+                
+                logger.info(f"Backend response status: {response.status_code}")
+                
+                if response.status_code == 201:
+                    result = response.json()
+                    request_id = result.get("data", {}).get("id", "unknown")
+                    logger.info(f"Service request created successfully with ID: {request_id}")
+                    return f"Service request created successfully. Request ID: {request_id}. Our team will review your issue and respond to you shortly."
+                else:
+                    error_msg = response.text
+                    logger.error(f"Failed to create service request: {error_msg}")
+                    return f"I apologize, but I encountered an error while creating your service request. Please try again or contact our support team directly."
+        
+        except httpx.TimeoutException:
+            logger.error("Timeout while creating service request")
+            return "I apologize, but the service request system is temporarily unavailable. Please try again in a moment or contact our support team directly."
+        except Exception as e:
+            logger.error(f"Error creating service request: {str(e)}")
+            return f"I apologize, but I encountered an error while creating your service request: {str(e)}. Please contact our support team directly."
 
 
 def prewarm(proc: JobProcess):

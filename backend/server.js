@@ -41,7 +41,9 @@ app.use(cors({
   origin: [
     'http://localhost:3000',  // Next.js dev server
     'http://localhost:3001',  // Alternative port
+    'http://localhost:5173',  // Vite dev server (admin frontend)
     'http://127.0.0.1:3000',  // Alternative localhost
+    'http://127.0.0.1:5173',  // Vite alternative
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -89,15 +91,63 @@ app.get('/health', async (req, res) => {
 // Create escalation request endpoint
 app.post('/api/escalation-requests', async (req, res) => {
   try {
-    const { question } = req.body;
+    const { question, customer_name, date_of_visit } = req.body;
+    
     if (!question || question.trim() === '') {
       return res.status(400).json({ error: 'Question is required' });
     }
+    if (!customer_name || customer_name.trim() === '') {
+      return res.status(400).json({ error: 'Customer name is required' });
+    }
+    if (!date_of_visit || date_of_visit.trim() === '') {
+      return res.status(400).json({ error: 'Date of visit is required' });
+    }
 
-    const result = await databaseService.createEscalationRequest(question.trim());
+    const result = await databaseService.createEscalationRequest(
+      question.trim(),
+      customer_name.trim(),
+      date_of_visit.trim()
+    );
     res.status(201).json(result);
   } catch (error) {
     res.status(500).json({ error: error.message || 'Failed to create escalation request' });
+  }
+});
+
+// Get all escalation requests endpoint
+app.get('/api/escalation-requests', async (req, res) => {
+  try {
+    const result = await databaseService.getAllEscalationRequests();
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching escalation requests:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch escalation requests' });
+  }
+});
+
+// Update escalation request endpoint
+app.put('/api/escalation-requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, response } = req.body;
+
+    const updates = {};
+    if (status !== undefined) {
+      updates.status = status;
+    }
+    if (response !== undefined) {
+      updates.response = response;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    const result = await databaseService.updateEscalationRequest(id, updates);
+    res.json(result);
+  } catch (error) {
+    console.error('Error updating escalation request:', error);
+    res.status(500).json({ error: error.message || 'Failed to update escalation request' });
   }
 });
 

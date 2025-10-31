@@ -43,8 +43,13 @@ ESCALATION POLICY:
 When you cannot answer a customer's question because it's not covered in the business information:
 1. Acknowledge that you don't have that information available
 2. Ask the customer: "Would you like me to raise a complaint or service request for this issue? Our team will review it and get back to you."
-3. If the customer agrees (says yes, sure, ok, please do, etc.), you MUST use the create_service_request tool to create a brief summary of the issue
-4. After creating the request, confirm with the customer: "I've successfully created a service request for your issue. Our team will review it and respond to you shortly. Is there anything else I can help you with?"
+3. If the customer agrees (says yes, sure, ok, please do, etc.), you MUST collect the following information BEFORE creating the service request:
+   - Customer's name: Ask "May I have your name, please?"
+   - Date of visit: Ask "What date did you visit us?" or "When was your visit?"
+4. Once you have the customer's name and date of visit, use the create_service_request tool with all three pieces of information: question summary, customer name, and date of visit
+5. After creating the request, confirm with the customer: "I've successfully created a service request for your issue. Our team will review it and respond to you shortly. Is there anything else I can help you with?"
+
+IMPORTANT: Always ask for the customer's name and date of visit BEFORE calling the create_service_request tool. Do not create a service request without these details.
 
 {business_info}
 
@@ -61,26 +66,33 @@ Remember: Only provide information that's explicitly mentioned above. For anythi
         super().__init__(instructions=instructions)
 
     @function_tool
-    async def create_service_request(self, context: RunContext, question_summary: str):
+    async def create_service_request(self, context: RunContext, question_summary: str, customer_name: str, date_of_visit: str):
         """Create a service request or complaint for an issue that cannot be resolved by the agent.
         
         Use this tool when a customer asks about something not covered in the business information
-        and they have agreed to raise a complaint or service request. Create a brief, clear summary
-        of the customer's issue or question.
+        and they have agreed to raise a complaint or service request. You MUST have the customer's name
+        and date of visit before calling this tool.
         
         Args:
             question_summary: A brief summary of the customer's question or issue that needs human intervention
+            customer_name: The customer's name (ask for this before creating the request)
+            date_of_visit: The date when the customer visited (ask for this before creating the request)
         """
         backend_url = os.getenv("BACKEND_URL", "http://localhost:4200")
         
         try:
             logger.info(f"Creating service request for: {question_summary}")
+            logger.info(f"Customer: {customer_name}, Date of visit: {date_of_visit}")
             logger.info(f"Calling backend at: {backend_url}/api/escalation-requests")
             
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
                     f"{backend_url}/api/escalation-requests",
-                    json={"question": question_summary},
+                    json={
+                        "question": question_summary,
+                        "customer_name": customer_name,
+                        "date_of_visit": date_of_visit
+                    },
                     headers={"Content-Type": "application/json"},
                 )
                 

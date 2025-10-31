@@ -29,7 +29,7 @@ export const COLLECTIONS = {
 const ESCALATION_REQUESTS_SCHEMA = {
   $jsonSchema: {
     bsonType: 'object',
-    required: ['id', 'question', 'status', 'resolved_at', 'response', 'created_at'],
+    required: ['id', 'question', 'status', 'resolved_at', 'response', 'created_at', 'customer_name', 'date_of_visit'],
     properties: {
       id: {
         bsonType: 'string',
@@ -38,6 +38,14 @@ const ESCALATION_REQUESTS_SCHEMA = {
       question: {
         bsonType: 'string',
         description: 'Customer question or issue summary - required'
+      },
+      customer_name: {
+        bsonType: 'string',
+        description: 'Customer name - required'
+      },
+      date_of_visit: {
+        bsonType: 'string',
+        description: 'Date of customer visit - required'
       },
       status: {
         enum: ['pending', 'resolved', 'timeout'],

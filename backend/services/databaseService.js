@@ -60,10 +60,21 @@ class DatabaseService {
   }
 
   // Create escalation request
-  async createEscalationRequest(question, status = 'pending') {
+  async createEscalationRequest(question, customerName, dateOfVisit, status = 'pending') {
     try {
       // Validate status
       DatabaseService.validateStatus(status);
+      
+      // Validate required fields
+      if (!question || question.trim() === '') {
+        throw new Error('Question is required');
+      }
+      if (!customerName || customerName.trim() === '') {
+        throw new Error('Customer name is required');
+      }
+      if (!dateOfVisit || dateOfVisit.trim() === '') {
+        throw new Error('Date of visit is required');
+      }
       
       if (!this.isConnected) {
         await this.initialize();
@@ -71,7 +82,9 @@ class DatabaseService {
 
       const escalationRequest = {
         id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        question: question,
+        question: question.trim(),
+        customer_name: customerName.trim(),
+        date_of_visit: dateOfVisit.trim(),
         status: status,
         resolved_at: null,
         response: null,
@@ -94,6 +107,97 @@ class DatabaseService {
       };
     } catch (error) {
       throw new Error(`Failed to create escalation request: ${error.message}`);
+    }
+  }
+
+  // Get all escalation requests
+  async getAllEscalationRequests() {
+    try {
+      if (!this.isConnected) {
+        await this.initialize();
+      }
+
+      if (!this.collections || !this.collections.escalation_requests) {
+        throw new Error('Database collections not properly initialized');
+      }
+
+      const requests = await this.collections.escalation_requests
+        .find({})
+        .sort({ created_at: -1 })
+        .toArray();
+
+      return {
+        success: true,
+        data: requests,
+        count: requests.length,
+      };
+    } catch (error) {
+      console.error('Error fetching escalation requests:', error);
+      throw new Error(`Failed to fetch escalation requests: ${error.message}`);
+    }
+  }
+
+  // Update escalation request
+  async updateEscalationRequest(requestId, updates) {
+    try {
+      if (!this.isConnected) {
+        await this.initialize();
+      }
+
+      if (!this.collections || !this.collections.escalation_requests) {
+        throw new Error('Database collections not properly initialized');
+      }
+
+      // First, check if the request exists
+      const existing = await this.collections.escalation_requests.findOne({ id: requestId });
+      if (!existing) {
+        throw new Error(`Escalation request with id ${requestId} not found`);
+      }
+
+      // Validate status if provided
+      if (updates.status) {
+        DatabaseService.validateStatus(updates.status);
+      }
+
+      const updateData = {
+        ...updates,
+        updated_at: new Date().toISOString(),
+      };
+
+      // If status is being set to 'resolved' and resolved_at is null, set it
+      if (updates.status === 'resolved' && !updates.resolved_at) {
+        updateData.resolved_at = new Date().toISOString();
+      }
+
+      // If status is being changed from 'resolved' to something else, clear resolved_at
+      if (updates.status && updates.status !== 'resolved' && existing.status === 'resolved') {
+        updateData.resolved_at = null;
+      }
+
+      // Update the document
+      const updateResult = await this.collections.escalation_requests.updateOne(
+        { id: requestId },
+        { $set: updateData }
+      );
+
+      if (updateResult.matchedCount === 0) {
+        throw new Error(`Escalation request with id ${requestId} not found`);
+      }
+
+      if (updateResult.modifiedCount === 0) {
+        console.warn(`No changes made to escalation request ${requestId}`);
+      }
+
+      // Fetch the updated document
+      const updated = await this.collections.escalation_requests.findOne({ id: requestId });
+
+      return {
+        success: true,
+        data: updated,
+      };
+    } catch (error) {
+      console.error('Error updating escalation request:', error);
+      throw new Error(`Failed to update escalation request: ${error.message}`);
     }
   }
 }

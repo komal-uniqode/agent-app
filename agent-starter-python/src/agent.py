@@ -31,13 +31,26 @@ load_dotenv(".env.local")
 
 
 class CustomerSupportAgent(Agent):
-    def __init__(self) -> None:
+    def __init__(self, knowledge_base_items=None) -> None:
         # Get business information from configuration
         business_info = get_business_info_text()
         
+        # Format knowledge base items
+        knowledge_base_text = ""
+        if knowledge_base_items and len(knowledge_base_items) > 0:
+            knowledge_base_text = "\n\nKNOWLEDGE BASE (Previously Resolved Questions & Answers):\n"
+            knowledge_base_text += "Use the information below to answer similar customer questions. These are questions that were previously resolved:\n\n"
+            for idx, item in enumerate(knowledge_base_items, 1):
+                knowledge_base_text += f"{idx}. Q: {item.get('question', 'N/A')}\n"
+                knowledge_base_text += f"   A: {item.get('answer', 'N/A')}\n\n"
+        
         instructions = f"""You are a professional customer support executive for our company. You are speaking with customers via voice, so keep your responses conversational and natural.
 
-IMPORTANT: You can ONLY answer questions based on the specific business information provided below. 
+IMPORTANT: You can answer questions based on:
+1. The specific business information provided below
+2. The knowledge base of previously resolved questions and answers (if available)
+
+If a customer asks a question that matches something in the knowledge base, you can use that information to provide an accurate answer.
 
 ESCALATION POLICY:
 When you cannot answer a customer's question because it's not covered in the business information:
@@ -52,6 +65,8 @@ When you cannot answer a customer's question because it's not covered in the bus
 IMPORTANT: Always ask for the customer's name and date of visit BEFORE calling the create_service_request tool. Do not create a service request without these details.
 
 {business_info}
+
+{knowledge_base_text}
 
 COMMUNICATION STYLE:
 - Be professional, friendly, and helpful
@@ -182,9 +197,30 @@ async def entrypoint(ctx: JobContext):
     # # Start the avatar and wait for it to join
     # await avatar.start(session, room=ctx.room)
 
+    # Fetch knowledge base items from backend
+    knowledge_base_items = []
+    try:
+        backend_url = os.getenv("BACKEND_URL")
+        async with httpx.AsyncClient() as client:
+            kb_response = await client.get(
+                f"{backend_url}/api/knowledge-base",
+                timeout=5.0,
+            )
+            if kb_response.status_code == 200:
+                kb_data = kb_response.json()
+                if kb_data.get("success") and kb_data.get("data"):
+                    knowledge_base_items = kb_data["data"]
+                    logger.info(f"Loaded {len(knowledge_base_items)} knowledge base items")
+                else:
+                    logger.warning("Knowledge base API returned success=false or no data")
+            else:
+                logger.warning(f"Failed to fetch knowledge base: {kb_response.status_code}")
+    except Exception as e:
+        logger.warning(f"Could not fetch knowledge base items: {e}. Continuing without KB context.")
+    
     # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=CustomerSupportAgent(),
+        agent=CustomerSupportAgent(knowledge_base_items=knowledge_base_items),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             # For telephony applications, use `BVCTelephony` for best results

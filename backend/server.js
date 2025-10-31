@@ -151,6 +151,17 @@ app.put('/api/escalation-requests/:id', async (req, res) => {
   }
 });
 
+// Get all knowledge base items endpoint
+app.get('/api/knowledge-base', async (req, res) => {
+  try {
+    const result = await databaseService.getAllKnowledgeBaseItems();
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching knowledge base items:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch knowledge base items' });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

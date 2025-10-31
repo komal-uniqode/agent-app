@@ -137,6 +137,33 @@ class DatabaseService {
     }
   }
 
+  // Get all knowledge base items
+  async getAllKnowledgeBaseItems() {
+    try {
+      if (!this.isConnected) {
+        await this.initialize();
+      }
+
+      if (!this.collections || !this.collections.knowledge_base) {
+        throw new Error('Database collections not properly initialized');
+      }
+
+      const items = await this.collections.knowledge_base
+        .find({})
+        .sort({ created_at: -1 })
+        .toArray();
+
+      return {
+        success: true,
+        data: items,
+        count: items.length,
+      };
+    } catch (error) {
+      console.error('Error fetching knowledge base items:', error);
+      throw new Error(`Failed to fetch knowledge base items: ${error.message}`);
+    }
+  }
+
   // Create knowledge base item
   async createKnowledgeBaseItem(id, question, answer) {
     try {

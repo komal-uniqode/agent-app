@@ -45,24 +45,33 @@ export function useRoom(appConfig: AppConfig) {
         );
 
         try {
-          const res = await fetch(url.toString(), {
-            method: 'POST',
+          const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+          
+          const tokenRes = await fetch(`${backendUrl}/getToken`, {
+            method: 'GET',
             headers: {
               'Content-Type': 'application/json',
-              'X-Sandbox-Id': appConfig.sandboxId ?? '',
             },
-            body: JSON.stringify({
-              room_config: appConfig.agentName
-                ? {
-                    agents: [{ agent_name: appConfig.agentName }],
-                  }
-                : undefined,
-            }),
           });
-          return await res.json();
+
+          if (!tokenRes.ok) {
+            throw new Error(`Failed to fetch token from backend: ${tokenRes.status}`);
+          }
+
+          const tokenData = await tokenRes.json();
+
+          // Return connection details in the same format as the original Next.js API
+          const finalConnectionDetails = {
+            serverUrl: process.env.NEXT_PUBLIC_LIVEKIT_URL,
+            roomName: tokenData.roomName || 'quickstart-room',
+            participantName: tokenData.participantName || 'quickstart-username',
+            participantToken: tokenData.token,
+          };
+          
+          return finalConnectionDetails;
         } catch (error) {
-          console.error('Error fetching connection details:', error);
-          throw new Error('Error fetching connection details!');
+          console.error('Error fetching token:', error);
+          throw new Error(`Error fetching connection details or token: ${error.message}`);
         }
       }),
     [appConfig]

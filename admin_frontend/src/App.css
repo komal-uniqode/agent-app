@@ -17,6 +17,48 @@ body {
   min-height: 100vh;
 }
 
+.view-toggle-container {
+  padding: 1.5rem 2rem 0;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.toggle-buttons {
+  display: flex;
+  gap: 0.5rem;
+  background-color: white;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  width: fit-content;
+}
+
+.toggle-button {
+  padding: 0.75rem 1.5rem;
+  background-color: transparent;
+  color: #6b7280;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggle-button:hover {
+  background-color: #f9fafb;
+  color: #111827;
+}
+
+.toggle-button.active {
+  background-color: #2563eb;
+  color: white;
+}
+
+.toggle-button.active:hover {
+  background-color: #1d4ed8;
+}
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;

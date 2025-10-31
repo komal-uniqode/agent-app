@@ -25,5 +25,14 @@ export const api = {
     }
     return response.json();
   },
+
+  // Get all knowledge base items
+  async getKnowledgeBaseItems() {
+    const response = await fetch(`${API_BASE_URL}/api/knowledge-base`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch knowledge base items');
+    }
+    return response.json();
+  },
 };
 
